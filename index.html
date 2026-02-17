@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Drummba Ho | Arcade of Najah</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        neonBlue: '#00f3ff',
+                        neonPink: '#ff00ff',
+                        neonGreen: '#0aff00',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+
+        :root {
+            --neon-blue: #00f3ff;
+            --neon-pink: #ff00ff;
+            --neon-green: #0aff00;
+            --bg-dark: #0a0a12;
+            --panel-bg: #151520;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: #fff;
+            font-family: 'Share Tech Mono', monospace;
+            overflow-x: hidden;
+            touch-action: manipulation;
+        }
+
+        .arcade-font {
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        /* --- FIXED GRID LAYOUT --- */
+        /* This ensures the grid works even if Tailwind is slow */
+        #pad-container {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            width: 100%;
+        }
+
+        /* --- PAD STYLES --- */
+        .drum-pad {
+            width: 100%;
+            aspect-ratio: 1 / 1; /* Forces square shape */
+            background: linear-gradient(145deg, #1e1e2d, #161622);
+            box-shadow: 5px 5px 10px #0b0b10, -5px -5px 10px #2a2a3e;
+            border: 1px solid #333;
+            border-radius: 12px;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            user-select: none;
+            transition: transform 0.1s, box-shadow 0.1s;
+            min-height: 80px; /* Safety minimum height */
+        }
+
+        .drum-pad span.label {
+            font-size: 1.2rem;
+            font-weight: bold;
+            letter-spacing: 1px;
+            pointer-events: none;
+        }
+
+        .drum-pad span.key {
+            font-size: 0.8rem;
+            color: #666;
+            margin-top: 4px;
+            pointer-events: none;
+        }
+
+        .drum-pad:active, .drum-pad.active {
+            transform: scale(0.95);
+            box-shadow: inset 0 0 15px rgba(0,0,0,0.5);
+            border-color: var(--neon-blue);
+        }
+
+        /* Pad Color Indicators */
+        .pad-kick { border-bottom: 4px solid var(--neon-blue); }
+        .pad-snare { border-bottom: 4px solid var(--neon-pink); }
+        .pad-cymb { border-bottom: 4px solid var(--neon-green); }
+        .pad-perc { border-bottom: 4px solid #ffcc00; }
+
+        .pad-kick.active { box-shadow: 0 0 20px var(--neon-blue); }
+        .pad-snare.active { box-shadow: 0 0 20px var(--neon-pink); }
+        .pad-cymb.active { box-shadow: 0 0 20px var(--neon-green); }
+        .pad-perc.active { box-shadow: 0 0 20px #ffcc00; }
+
+        /* Recorder Log Styling */
+        .record-log::-webkit-scrollbar { width: 6px; }
+        .record-log::-webkit-scrollbar-track { background: #111; }
+        .record-log::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+
+        .neon-text {
+            text-shadow: 0 0 5px rgba(0, 243, 255, 0.5);
+        }
+
+        .typing-active {
+            border-color: var(--neon-green) !important;
+            box-shadow: 0 0 10px var(--neon-green);
+        }
+
+        /* Visualizer Bars */
+        .viz-bar { transition: height 0.05s ease; }
+
+        /* Blink Animation */
+        @keyframes blinkRed {
+            0%, 100% { opacity: 1; box-shadow: 0 0 10px red; }
+            50% { opacity: 0.3; box-shadow: none; }
+        }
+        .rec-dot.recording {
+            animation: blinkRed 1s infinite;
+            background-color: #ff0000;
+        }
+
+        /* Mobile specific adjustments */
+        @media (max-width: 768px) {
+            .drum-pad span.label { font-size: 0.9rem; }
+            .drum-pad { min-height: 60px; }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col p-4 md:p-6 lg:p-8 bg-[#0a0a12]">
+
+    <!-- Header -->
+    <header class="w-full max-w-6xl mx-auto flex justify-between items-center mb-6 border-b border-gray-800 pb-4">
+        <div>
+            <h1 class="text-3xl md:text-5xl font-black arcade-font italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-500 neon-text">
+                DRUMMBA HO
+            </h1>
+            <p class="text-xs text-gray-400 mt-1">ARCADE OF NAJAH </p>
+        </div>
+        
+        <div class="flex flex-col items-end">
+            <div class="flex items-center gap-2 mb-1">
+                <span class="text-xs text-gray-500">MASTER VOL</span>
+                <input type="range" id="master-vol" min="0" max="1" step="0.1" value="0.8" class="w-24 accent-cyan-400 cursor-pointer">
+            </div>
+            <div id="status-badge" class="px-2 py-0.5 rounded text-[10px] font-bold bg-gray-800 text-green-500 border border-green-900">
+                SYSTEM ONLINE
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Layout Grid -->
+    <main class="w-full max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 flex-grow">
+        
+        <!-- Left Panel: Controls (Span 4 on large screens) -->
+        <aside class="lg:col-span-4 flex flex-col gap-4 order-2 lg:order-1">
+            
+            <!-- LCD Display -->
+            <div class="bg-black border-2 border-gray-800 rounded-lg p-4 h-32 relative overflow-hidden flex flex-col justify-between shadow-[inset_0_0_20px_rgba(0,0,0,1)]">
+                <div class="flex justify-between items-start z-10">
+                    <span id="status-text" class="text-green-500 text-xs tracking-widest uppercase font-bold">READY</span>
+                    <div id="rec-dot" class="rec-dot w-3 h-3 rounded-full bg-gray-800 transition-colors"></div>
+                </div>
+                
+                <!-- Visualizer -->
+                <div class="flex items-end justify-between h-12 gap-1 opacity-80" id="visualizer">
+                    <!-- Bars injected by JS -->
+                </div>
+
+                <div class="text-right z-10">
+                    <span id="timer-display" class="text-3xl font-mono text-cyan-400 drop-shadow-md">00:00:00</span>
+                </div>
+                
+                <!-- Screen Glare/Scanlines -->
+                <div class="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] z-0 pointer-events-none bg-[length:100%_4px,3px_100%]"></div>
+            </div>
+
+            <!-- Transport Controls -->
+            <div class="grid grid-cols-3 gap-2">
+                <button id="btn-rec" class="group h-14 rounded bg-gray-900 border border-gray-700 hover:border-red-500 hover:bg-gray-800 transition-all flex flex-col items-center justify-center">
+                    <div class="w-3 h-3 rounded-full bg-red-800 group-hover:bg-red-500 mb-1 shadow-lg transition-colors"></div>
+                    <span class="text-[10px] text-gray-400 group-hover:text-white font-bold">REC</span>
+                </button>
+                <button id="btn-stop" class="group h-14 rounded bg-gray-900 border border-gray-700 hover:border-yellow-500 hover:bg-gray-800 transition-all flex flex-col items-center justify-center">
+                    <div class="w-3 h-3 bg-yellow-800 group-hover:bg-yellow-500 mb-1 shadow-lg transition-colors"></div>
+                    <span class="text-[10px] text-gray-400 group-hover:text-white font-bold">STOP</span>
+                </button>
+                <button id="btn-play" class="group h-14 rounded bg-gray-900 border border-gray-700 hover:border-green-500 hover:bg-gray-800 transition-all flex flex-col items-center justify-center">
+                    <div class="w-0 h-0 border-l-[12px] border-l-green-900 group-hover:border-l-green-500 border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent mb-1 ml-1 transition-colors"></div>
+                    <span class="text-[10px] text-gray-400 group-hover:text-white font-bold">PLAY</span>
+                </button>
+            </div>
+
+            <!-- Recording Log -->
+            <div class="bg-[#151520] border border-gray-800 rounded p-2 h-40 flex flex-col relative">
+                <div class="flex justify-between items-center mb-2 border-b border-gray-800 pb-1">
+                    <span class="text-xs text-gray-500 uppercase font-bold pl-1">Sequencer Log</span>
+                    <button id="btn-clear" class="px-2 py-0.5 bg-red-900/30 text-[10px] text-red-400 hover:text-white hover:bg-red-600 rounded transition-colors">CLEAR</button>
+                </div>
+                <div id="record-log" class="record-log overflow-y-auto flex-grow text-xs font-mono space-y-1 text-gray-400 p-1">
+                    <div class="opacity-50 italic text-center mt-4">Tape empty...</div>
+                </div>
+            </div>
+            
+            <!-- Type Sequencer Input -->
+            <div class="bg-[#151520] border border-gray-800 rounded-lg p-3">
+                <label class="block text-[10px] font-bold text-cyan-400 mb-2 uppercase tracking-wide">
+                    Type-to-Beat Input
+                </label>
+                <div class="relative">
+                    <input type="text" id="type-drum-input" 
+                        placeholder="Type here..." 
+                        class="w-full bg-black border border-gray-700 text-white p-3 rounded font-mono text-base focus:outline-none focus:border-cyan-500 transition-colors placeholder-gray-700"
+                        autocomplete="off">
+                    <div class="absolute right-2 top-2 text-gray-600 text-[9px] border border-gray-800 p-1 rounded hidden sm:block">
+                        KEYBOARD MODE
+                    </div>
+                </div>
+                <div class="mt-2 text-[10px] text-gray-500 flex flex-wrap gap-2">
+                    <span class="bg-gray-900 px-1 rounded">A-Z: Trigger</span>
+                    <span class="bg-gray-900 px-1 rounded">SPACE: Fill</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Right Panel: Drum Pads (Span 8) -->
+        <div class="lg:col-span-8 order-1 lg:order-2">
+            <!-- The Pad Container (CSS Grid defined in <style>) -->
+            <div id="pad-container">
+                <!-- Pads will be injected here -->
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Start Overlay -->
+    <div id="start-overlay" class="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="max-w-md w-full bg-[#151520] border-2 border-cyan-500 p-8 rounded-xl text-center shadow-[0_0_50px_rgba(0,243,255,0.2)] relative overflow-hidden">
+            <!-- Decorative scanline for modal -->
+            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-cyan-500 to-transparent opacity-50"></div>
+            
+            <h2 class="text-4xl arcade-font text-white mb-2">DRUMMBA HO</h2>
+            <div class="text-cyan-400 text-sm mb-6 tracking-widest uppercase">Audio Synthesis Engine</div>
+            
+            <p class="text-gray-400 mb-8 text-sm leading-relaxed">
+                Welcome to the Arcade of Najah.
+                <br>Please initialize the audio context to begin.
+            </p>
+            
+            <button id="btn-start" class="w-full py-4 bg-cyan-600 hover:bg-cyan-500 hover:shadow-[0_0_20px_rgba(0,243,255,0.4)] text-black font-bold text-xl rounded arcade-font transition-all transform hover:-translate-y-1">
+                START ENGINE
+            </button>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * DRUMMBA HO - AUDIO ENGINE
+         * Pure Web Audio API Implementation
+         */
+
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        let masterGain = audioCtx.createGain();
+        masterGain.connect(audioCtx.destination);
+        masterGain.gain.value = 0.8;
+
+        // --- SYNTHESIS ---
+
+        const createKick = (time) => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(masterGain);
+            
+            osc.frequency.setValueAtTime(150, time);
+            osc.frequency.exponentialRampToValueAtTime(0.01, time + 0.5);
+            
+            gain.gain.setValueAtTime(1, time);
+            gain.gain.exponentialRampToValueAtTime(0.01, time + 0.5);
+            
+            osc.start(time);
+            osc.stop(time + 0.5);
+        };
+
+        const createSnare = (time) => {
+            const bufferSize = audioCtx.sampleRate * 0.5; 
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+            
+            const noise = audioCtx.createBufferSource();
+            noise.buffer = buffer;
+            const noiseFilter = audioCtx.createBiquadFilter();
+            noiseFilter.type = 'highpass';
+            noiseFilter.frequency.value = 1000;
+            const noiseGain = audioCtx.createGain();
+            
+            noise.connect(noiseFilter);
+            noiseFilter.connect(noiseGain);
+            noiseGain.connect(masterGain);
+
+            noiseGain.gain.setValueAtTime(1, time);
+            noiseGain.gain.exponentialRampToValueAtTime(0.01, time + 0.2);
+            noise.start(time);
+
+            const osc = audioCtx.createOscillator();
+            osc.type = 'triangle';
+            const oscGain = audioCtx.createGain();
+            osc.connect(oscGain);
+            oscGain.connect(masterGain);
+            osc.frequency.setValueAtTime(100, time);
+            oscGain.gain.setValueAtTime(0.7, time);
+            oscGain.gain.exponentialRampToValueAtTime(0.01, time + 0.1);
+            osc.start(time);
+            osc.stop(time + 0.2);
+        };
+
+        const createHiHat = (time, open = false) => {
+            const bufferSize = audioCtx.sampleRate * (open ? 0.5 : 0.1);
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+
+            const noise = audioCtx.createBufferSource();
+            noise.buffer = buffer;
+            const bandpass = audioCtx.createBiquadFilter();
+            bandpass.type = 'bandpass';
+            bandpass.frequency.value = 10000;
+            const highpass = audioCtx.createBiquadFilter();
+            highpass.type = 'highpass';
+            highpass.frequency.value = 7000;
+            const gain = audioCtx.createGain();
+            
+            noise.connect(bandpass);
+            bandpass.connect(highpass);
+            highpass.connect(gain);
+            gain.connect(masterGain);
+
+            gain.gain.setValueAtTime(0.6, time);
+            gain.gain.exponentialRampToValueAtTime(0.01, time + (open ? 0.3 : 0.05));
+            noise.start(time);
+        };
+
+        const createTom = (time, pitch) => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(masterGain);
+
+            osc.frequency.setValueAtTime(pitch, time);
+            osc.frequency.exponentialRampToValueAtTime(pitch * 0.8, time + 0.2);
+            gain.gain.setValueAtTime(0.7, time);
+            gain.gain.exponentialRampToValueAtTime(0.01, time + 0.3);
+
+            osc.start(time);
+            osc.stop(time + 0.3);
+        };
+
+        const createZap = (time) => {
+            const osc = audioCtx.createOscillator();
+            osc.type = 'sawtooth';
+            const gain = audioCtx.createGain();
+            const filter = audioCtx.createBiquadFilter();
+            osc.connect(filter);
+            filter.connect(gain);
+            gain.connect(masterGain);
+
+            osc.frequency.setValueAtTime(800, time);
+            osc.frequency.exponentialRampToValueAtTime(100, time + 0.2);
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(3000, time);
+            filter.frequency.linearRampToValueAtTime(100, time + 0.1);
+            gain.gain.setValueAtTime(0.5, time);
+            gain.gain.exponentialRampToValueAtTime(0.01, time + 0.2);
+
+            osc.start(time);
+            osc.stop(time + 0.2);
+        };
+
+        const createClap = (time) => {
+            const bufferSize = audioCtx.sampleRate * 0.2;
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+
+            const noise = audioCtx.createBufferSource();
+            noise.buffer = buffer;
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'bandpass';
+            filter.frequency.value = 1500;
+            const gain = audioCtx.createGain();
+            noise.connect(filter);
+            filter.connect(gain);
+            gain.connect(masterGain);
+
+            gain.gain.setValueAtTime(0.7, time);
+            gain.gain.exponentialRampToValueAtTime(0.01, time + 0.15);
+            noise.start(time);
+        };
+
+        // --- CONFIG & STATE ---
+
+        const drumConfig = [
+            { id: 'kick', label: 'KICK', key: 'q', type: 'kick', color: 'pad-kick' },
+            { id: 'snare', label: 'SNARE', key: 'w', type: 'snare', color: 'pad-snare' },
+            { id: 'hat_c', label: 'HAT CL', key: 'e', type: 'hat_c', color: 'pad-cymb' },
+            { id: 'hat_o', label: 'HAT OP', key: 'r', type: 'hat_o', color: 'pad-cymb' },
+            { id: 'tom1', label: 'TOM HI', key: 'a', type: 'tom1', color: 'pad-perc' },
+            { id: 'tom2', label: 'TOM LO', key: 's', type: 'tom2', color: 'pad-perc' },
+            { id: 'clap', label: 'CLAP', key: 'd', type: 'clap', color: 'pad-perc' },
+            { id: 'zap', label: 'ZAP', key: 'f', type: 'zap', color: 'pad-kick' },
+            { id: 'kick2', label: 'DEEP', key: 'z', type: 'kick', color: 'pad-kick' },
+            { id: 'rim', label: 'RIM', key: 'x', type: 'snare', color: 'pad-snare' },
+            { id: 'ride', label: 'RIDE', key: 'c', type: 'hat_o', color: 'pad-cymb' },
+            { id: 'crash', label: 'CRASH', key: 'v', type: 'hat_o', color: 'pad-cymb' },
+            { id: 'cow', label: 'BLIP', key: 't', type: 'zap', color: 'pad-perc' },
+            { id: 'fx1', label: 'FX 1', key: 'y', type: 'tom1', color: 'pad-perc' },
+            { id: 'fx2', label: 'FX 2', key: 'u', type: 'tom2', color: 'pad-perc' },
+            { id: 'fx3', label: 'FX 3', key: 'i', type: 'clap', color: 'pad-perc' },
+        ];
+
+        let isRecording = false;
+        let isPlaying = false;
+        let recordingStartTime = 0;
+        let recordedNotes = [];
+        let playbackTimeouts = [];
+
+        // --- DOM ---
+        const padContainer = document.getElementById('pad-container');
+        const recordLog = document.getElementById('record-log');
+        const statusText = document.getElementById('status-text');
+        const recDot = document.getElementById('rec-dot');
+        const timerDisplay = document.getElementById('timer-display');
+        const typeInput = document.getElementById('type-drum-input');
+
+        // --- INIT PADS ---
+        function initPads() {
+            padContainer.innerHTML = '';
+            drumConfig.forEach(drum => {
+                const btn = document.createElement('div');
+                // Using hardcoded classes in <style> for reliability
+                btn.className = `drum-pad ${drum.color}`;
+                btn.dataset.id = drum.id;
+                
+                // HTML Content
+                btn.innerHTML = `
+                    <span class="label">${drum.label}</span>
+                    <span class="key">[${drum.key.toUpperCase()}]</span>
+                `;
+
+                // Events
+                const trigger = (e) => {
+                    if (e.cancelable && e.type === 'touchstart') e.preventDefault();
+                    playDrum(drum.id);
+                };
+
+                btn.addEventListener('touchstart', trigger, { passive: false });
+                btn.addEventListener('mousedown', trigger);
+
+                padContainer.appendChild(btn);
+            });
+        }
+
+        // --- PLAYBACK LOGIC ---
+
+        function playSound(type) {
+            const now = audioCtx.currentTime;
+            switch(type) {
+                case 'kick': createKick(now); break;
+                case 'snare': createSnare(now); break;
+                case 'hat_c': createHiHat(now, false); break;
+                case 'hat_o': createHiHat(now, true); break;
+                case 'tom1': createTom(now, 200); break;
+                case 'tom2': createTom(now, 100); break;
+                case 'clap': createClap(now); break;
+                case 'zap': createZap(now); break;
+                default: createKick(now);
+            }
+            visualizeHit();
+        }
+
+        function playDrum(id, isPlayback = false) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+
+            const drum = drumConfig.find(d => d.id === id);
+            if (!drum) return;
+
+            playSound(drum.type);
+
+            // Visual Feedback
+            const btn = document.querySelector(`.drum-pad[data-id="${id}"]`);
+            if (btn) {
+                btn.classList.add('active');
+                setTimeout(() => btn.classList.remove('active'), 100);
+            }
+
+            // Recorder
+            if (isRecording && !isPlayback) {
+                const timestamp = Date.now() - recordingStartTime;
+                recordedNotes.push({ id, time: timestamp });
+                logRecord(drum.label, timestamp);
+            }
+        }
+
+        function logRecord(name, time) {
+            const div = document.createElement('div');
+            const formattedTime = (time / 1000).toFixed(2);
+            div.innerHTML = `<span class="text-cyan-600 font-bold">[${formattedTime}s]</span> ${name}`;
+            recordLog.appendChild(div);
+            recordLog.scrollTop = recordLog.scrollHeight;
+        }
+
+        // --- CONTROLS ---
+
+        document.getElementById('btn-rec').addEventListener('click', () => {
+            if (isRecording) return;
+            stopPlayback();
+            isRecording = true;
+            recordingStartTime = Date.now();
+            recordedNotes = [];
+            
+            statusText.innerText = "RECORDING";
+            statusText.classList.remove('text-green-500', 'text-yellow-500');
+            statusText.classList.add('text-red-500');
+            recDot.classList.add('recording');
+            recordLog.innerHTML = `<div class="text-red-400 font-bold">--- REC STARTED ---</div>`;
+            updateTimer();
+        });
+
+        document.getElementById('btn-stop').addEventListener('click', () => {
+            isRecording = false;
+            isPlaying = false;
+            stopPlayback();
+            statusText.innerText = "STOPPED";
+            statusText.classList.remove('text-red-500', 'text-green-500');
+            statusText.classList.add('text-yellow-500');
+            recDot.classList.remove('recording');
+        });
+
+        document.getElementById('btn-play').addEventListener('click', () => {
+            if (recordedNotes.length === 0 || isRecording || isPlaying) return;
+            isPlaying = true;
+            statusText.innerText = "PLAYING";
+            statusText.classList.remove('text-red-500', 'text-yellow-500');
+            statusText.classList.add('text-green-500');
+            recordLog.innerHTML += `<div class="text-green-400 mt-1 font-bold">--- PLAYBACK ---</div>`;
+
+            recordedNotes.forEach(note => {
+                playbackTimeouts.push(setTimeout(() => playDrum(note.id, true), note.time));
+            });
+
+            const lastNoteTime = recordedNotes[recordedNotes.length-1].time;
+            playbackTimeouts.push(setTimeout(() => document.getElementById('btn-stop').click(), lastNoteTime + 500));
+        });
+
+        document.getElementById('btn-clear').addEventListener('click', () => {
+            recordedNotes = [];
+            recordLog.innerHTML = '<div class="opacity-50 italic text-center mt-4">Tape empty...</div>';
+            document.getElementById('btn-stop').click();
+            statusText.innerText = "READY";
+            timerDisplay.innerText = "00:00:00";
+        });
+
+        function stopPlayback() {
+            playbackTimeouts.forEach(t => clearTimeout(t));
+            playbackTimeouts = [];
+        }
+
+        function updateTimer() {
+            if (!isRecording) return;
+            const now = Date.now();
+            const diff = now - recordingStartTime;
+            const mins = Math.floor(diff / 60000);
+            const secs = Math.floor((diff % 60000) / 1000);
+            const ms = Math.floor((diff % 1000) / 10);
+            timerDisplay.innerText = `${mins.toString().padStart(2,'0')}:${secs.toString().padStart(2,'0')}:${ms.toString().padStart(2,'0')}`;
+            requestAnimationFrame(updateTimer);
+        }
+
+        // --- INPUTS ---
+
+        document.addEventListener('keydown', (e) => {
+            if (document.activeElement === typeInput) return;
+            const drum = drumConfig.find(d => d.key === e.key.toLowerCase());
+            if (drum) playDrum(drum.id);
+        });
+
+        typeInput.addEventListener('input', (e) => {
+            if (!e.data) return;
+            const charCode = e.data.toLowerCase().charCodeAt(0);
+            const drum = drumConfig[charCode % drumConfig.length];
+            typeInput.classList.add('typing-active');
+            setTimeout(() => typeInput.classList.remove('typing-active'), 100);
+            if (drum) playDrum(drum.id);
+        });
+
+        // --- VIZ ---
+        const vizContainer = document.getElementById('visualizer');
+        for(let i=0; i<20; i++) {
+            const bar = document.createElement('div');
+            bar.className = 'viz-bar w-1.5 bg-cyan-500 rounded-t';
+            bar.style.height = '10%';
+            vizContainer.appendChild(bar);
+        }
+
+        function visualizeHit() {
+            const bars = document.getElementsByClassName('viz-bar');
+            for(let bar of bars) {
+                const h = Math.random() * 80 + 20;
+                bar.style.height = `${h}%`;
+                bar.style.backgroundColor = `hsl(${Math.random()*360}, 100%, 50%)`;
+                setTimeout(() => {
+                    bar.style.height = '10%';
+                    bar.style.backgroundColor = '#06b6d4';
+                }, 100);
+            }
+        }
+
+        document.getElementById('master-vol').addEventListener('input', (e) => {
+            masterGain.gain.value = e.target.value;
+        });
+
+        document.getElementById('btn-start').addEventListener('click', () => {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            document.getElementById('start-overlay').style.display = 'none';
+            initPads();
+        });
+    </script>
+</body>
+</html>
+
